@@ -76,7 +76,7 @@ jobs:
           [[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true
       - name: Install postcss
         run: |
-         npm install -D postcss postcss-cli
+         npm install -D postcss postcss-cli autoprefixer
       - name: Configure Git
         run: |
           git config core.quotepath false

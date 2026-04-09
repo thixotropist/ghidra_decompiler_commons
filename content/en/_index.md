@@ -31,12 +31,13 @@ to help that evolution along.
     * PcodeOps and Varnodes
     * Blocks and Edges
     * Low level errors and common segfaults
-* Community Testbed Examples
-   * mumbel examples
+* Community Testbeds and Initiatives
+   * mumbel testbed and initiatives
        * pending
-   * LukeSerne examples
+   * LukeSerne testbed and initiatives
        * pending
-   * thixotropist examples
+   * thixotropist testbed and initiatives
+       * Description of research goals and scope
        * Add support for SPDLOG internal logging
        * Add binary RISC-V exemplars for Decompiler survey and testing
        * Add support for user-specific decompiler plugins
