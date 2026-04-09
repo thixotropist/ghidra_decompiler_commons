@@ -74,6 +74,9 @@ jobs:
       - name: Install Node.js dependencies
         run: |
           [[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true
+      - name: Install postcss
+        run: |
+         npm install -D postcss postcss-cli
       - name: Configure Git
         run: |
           git config core.quotepath false
