@@ -2,6 +2,7 @@
 title: Community Testbed Initiatives
 linkTitle: 
 menu: {main: {weight:20}}
+description: Members of the broader Ghidra community share their testbeds and the initiatives they support.
 weight: 20
 ---
 
