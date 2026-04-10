@@ -31,7 +31,7 @@ Recommended Testbed components:
   like DPDK as an exemplar training binary, then you will have files like `dpdk_sample_1_save.xml` and `dpdk_sample_1.ghidra`in your
   `test` directory.  A single test execution will often look like:
     ```console
-    SLEIGHHOME=/opt/ghidra_12.1_DEV/ DECOMP_PLUGIN=/tmp/libriscv_vector.so valgrind /opt/ghidra_12.1_DEV/Ghidra/Features/Decompiler/os/linux_x86_64/decompile_datatest < test/dpdk_sample_1.ghidra.ghidra
+    SLEIGHHOME=/opt/ghidra_12.1_DEV/ DECOMP_PLUGIN=/tmp/libriscv_vector.so valgrind /opt/ghidra_12.1_DEV/Ghidra/Features/Decompiler/os/linux_x86_64/decompile_datatest < test/dpdk_sample_1.ghidra
     ```
 
 There are a lot of ways to manage your source-level experiments with the Ghidra decompiler.  Our current choices are:

@@ -1,0 +1,121 @@
+---
+title: Decompiler data tests
+description: The decompiler uses stand alone data tests to validate its behavior
+weight: 40
+---
+
+If you add a new feature to the decompiler you will want an easy way to test it - and re-test it, every time you make
+another change to the decompiler.
+
+The Ghidra developers made that easy, with no need to start up a new Ghidra GUI instance.
+
+Suppose you want to test new decompiler code that transforms Pcode sequences into more human-readable decompiler output.
+The decompiler source includes the target `testfunction` which runs all of the data tests in
+`Ghidra/Features/Decompiler/src/decompile/datatests`.  The `heapstring.xml` test sets the architecture as `x86:LE:64:default:gcc`,
+loads a `binaryimage` set of `bytechunks` holding raw binary, then defines some `structs` and `functions`.  This test
+then provides a script to exercise the decompiler and a set of `stringmatch` assertions that `decompile` and `print C` commands
+will generate specific calls to `builtin_strncpy` and `builtin_memcpy`.
+
+This test exercises two transformation Rules defined in `constseq.hh` and `constseq.cc`.  These rules search for multibyte
+loads and stores that can be condensed into single invocations of `builtin_strncpy` and `builtin_memcpy`.  The x86_64 multibyte load and
+store instructions can be more than a little confusing, so this transformation is well worthwhile.
+
+If we don't want to run *all* of the datatests within the `testfunction` test harness, we can translate the `heapstring.xml` test into
+a standalone decompiler test:
+
+First slice the binary data and core type information out of `heapstring.xml` into test/heapstring_save.xml.  That will look like:
+```xml
+<xml_savefile name="main" target="default" adjustvma="0">
+    <binaryimage arch="x86:LE:64:default:gcc">
+        <bytechunk space="ram" offset="0x100000" readonly="true">
+            f30f1efa48ba4d6573736167653a488b
+            07488910c6400820c3
+    </bytechunk>
+    </binaryimage>
+    <coretypes>
+        <void />
+        <type name="int" size="4" metatype="int" id="-9223370945157383201" />
+        <type name="char" size="1" metatype="int" char="true" id="-9223091865880322087" />
+    </coretypes>
+</xml_savefile>
+```
+
+Next select the decompiler commands out of `heapstring.xml` into `test/heapstring.ghidra`:
+
+```text
+restore test/heapstring_save.xml
+map function 0x100000 fillin
+option readonly on
+parse line struct mystring { char *val; int len; };
+parse line extern void fillin(mystring *ptr);
+load function fillin
+decompile
+print raw
+print C
+```
+
+Regenerate the raw binary `heapstring.bin` by echoing "f30f1efa48ba4d6573736167653a488b07488910c6400820c3" through `xxd -r -p`.
+Import that into Ghidra so we know what we are starting with.
+
+Ghidra's listing window shows:
+
+```text
+
+                    FUN_00000000:
+00000000 f3 0f 1e fa     ENDBR64
+00000004 48 ba 4d        MOV     RDX,0x3a6567617373654d
+         65 73 73 
+         61 67 65 3a
+0000000e 48 8b 07        MOV     RAX,qword ptr [ptr->val]
+00000011 48 89 10        MOV     qword ptr [RAX],RDX
+00000014 c6 40 08 20     MOV     byte ptr [RAX + 0x8],0x20
+00000018 c3              RET
+```
+
+The decompiler window is much easier to understand, after setting the function signature correctly:
+
+```c
+void FUN_00000000(mystring *ptr)
+{
+  builtin_strncpy(ptr->val,"Message: ",9);
+  return;
+}
+```
+
+Now run the standalone data test:
+
+```console
+$  SLEIGHHOME=/opt/ghidra_12.1_DEV/  /opt/ghidra_12.1_DEV/Ghidra/Features/Decompiler/os/linux_x86_64/decompile_datatest < test/heapstring.ghidra
+[decomp]> restore test/heapstring_save.xml
+test/heapstring_save.xml successfully loaded: Intel/AMD 64-bit x86
+[decomp]> map function 0x100000 fillin
+[decomp]> option readonly on
+Read-only memory locations now propagate as constants
+[decomp]> parse line struct mystring { char *val; int len; };
+[decomp]> parse line extern void fillin(mystring *ptr);
+[decomp]> load function fillin
+Function fillin: 0x00100000
+[decomp]> decompile
+Decompiling fillin
+Decompilation complete
+[decomp]> print raw
+0
+Basic Block 0 0x00100004-0x00100018
+0x0010000e:c:	u0x10000000(0x0010000e:c) = RDI(i) -> #0x0
+0x0010000e:1:	u0x00023e00(0x0010000e:1) = *(ram,u0x10000000(0x0010000e:c))
+0x00100011:1d:	u0x10000050(0x00100011:1d) = stringdata(#0xa13643bd00100011)
+0x00100011:1e:	builtin_strncpy(u0x00023e00(0x0010000e:1),u0x10000050(0x00100011:1d),#0x9:4)
+0x00100018:a:	return(#0x0)
+[decomp]> print C
+
+void fillin(mystring *ptr)
+
+{
+  builtin_strncpy(ptr->val,"Message: ",9);
+  return;
+}
+```
+
+If you want to turn a given function into a decompiler data test, you will usually start by locating the function
+in Ghidra, then selecting `Debug Function Decompilation` in the decompiler window.  That will give you something to
+slice into similar data tests.
