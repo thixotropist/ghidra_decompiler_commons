@@ -5,35 +5,35 @@ weight: 10
 ---
 
 The decompiler converts a binary executable into something resembling C. It uses the SLEIGH processor language definitions
-to convert machine instructions into processor independent Pcode, then follows branch, call, and return instructions to group
-that Pcode into blocks, accepts context and constraints from the Ghidra GUI, then recasts the blocks of Pcode into something
-very much like C.
+to convert machine instructions into processor independent PCode, then follows branch, call, and return instructions to group
+that PCode into blocks, accepts context and constraints from the Ghidra GUI, then recasts the blocks of PCode into something
+much like C to display in the Decompiler window.
 
 The decompiler does a great job, but it doesn't evolve very quickly.
 
 Key decompiler external features include:
 
-* the source code is mostly within `.../Ghidra/Features/Decompiler/src/decompile/cpp`.
-  It amounts to 134K lines of very nicely documented code.
-* the executable binary - on a linux host - will be found at `.../Ghidra/Features/Decompiler/os/linux_x86_64/decompile`.  A standalone
+* The source code is mostly within `.../Ghidra/Features/Decompiler/src/decompile/cpp`.
+  It amounts to 134K lines of very nicely documented C++ code.
+* The executable binary - on a linux host - will be found at `.../Ghidra/Features/Decompiler/os/linux_x86_64/decompile`.  A standalone
   `decompile_datatest` exists in the same directory.  This is incredibly useful to anyone seeking to extend the decompiler without
   trying a full Ghidra rebuild.
-* The decompiler requires a processor language definition and works operates on one function at a time.  The Ghidra GUI will usually
+* The decompiler requires a processor language definition and operates on one function at a time.  The Ghidra GUI will usually
   start a decompiler process by giving it the binary image, an Architecture definition (e.g., x86_64), a compiled SLEIGH language definition, and whatever is currently known about that function.  This include type assignments, variable names, function signatures,
   and structure definitions.
 * The decompiler processes run as single-threaded agents.  In most cases the Ghidra GUI launches a single agent as the users
   examine a single function at a time.  If an entire program is exported to C/C++ source code, then multiple decompiler process
   agents will be launched with no lateral communication between the agents.
 
-Internally, the decompiler relies on per-processor SLEIGH definitions to turn machine instructions into Pcode.  An integer addition
-instruction will turn the instruction at 0x00000050 emitted by `c.sub a2,a3` and assembed into `0x15 0x8e` into Pcode like:
+Internally, the decompiler relies on per-processor SLEIGH definitions to turn machine instructions into PCode.  An integer addition
+instruction will turn the instruction at 0x00000050 emitted by `c.sub a2,a3` and assembled into `0x15 0x8e` into PCode like:
 
 ```text
 0x00000050:3:	a2(0x00000050:3) = a2(0x00000048:e) - a3(0x00000048:0)
 ```
 
-This `PcodeOp` has these components:
-* an address of `0x00000050` and a sequence number of `3`
+This `PCodeOp` has these components:
+* an address of `0x00000050`.
 * The opcode `CPUI_INT_SUB`, for signed or unsigned integer subtraction
 * two Varnodes as input `a2(0x00000048:e)` and `a3(0x00000048:0)`
 * one Varnode as output `a2(0x00000050:3)`.
@@ -41,6 +41,11 @@ This `PcodeOp` has these components:
 The decompiler uses [Static Single Assignment](https://en.wikipedia.org/wiki/Static_single-assignment_form) internally,
 so register Varnodes are identified by their register names (like `a2` or `a3`) the address at which they are singly assigned
 (like `0x00000048` or `0x00000050`), and sequence number (or `time` field) showing the exact step at which it was assigned.
+If a Varnode is replaced with something identical, the new Varnode will have a different sequence number and internal links will be
+broken.
+
+>Note: The decompiler's type casts often replace Varnodes after inserting CAST operations, making most Varnodes ephemeral until
+>      the function is returned to the Ghidra GUI.
 
 The decompiler can now translate this Pcode into a line in the Decompiler window like `lVar1 = lVar1 - lVar2`.
 
@@ -80,5 +85,5 @@ Maybe we would rather see this instead:
 __builtin_memcpy(dest, src, size);
 ```
 
->Note: `__builtin_memcpy` is the visible version of gcc's generic `memcpy` pattern.  Internal to the gcc compiler the RTL name is
->      `cpymem`.  See the gcc source file `gcc/doc/md.texi` for more examples.
+>Note: `__builtin_memcpy` is the visible version of anything gcc can translate to its generic `memcpy` pattern.
+>      Internal to the gcc compiler the RTL name is `cpymem`.  See the gcc source file `gcc/doc/md.texi` for more examples.

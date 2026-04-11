@@ -14,25 +14,33 @@ that will begin to show up in 36 months - will it take us 18 or 72 months to get
 
 Initiative features:
 
-* Use RISC-V instruction set extensions - especially vector, crypto, and bit manipulation extensions - as the evolutionary driver.
-    * Narrow the scope to 64 bit RISC-V cores implementing the RVA-23 extension profile
+* Use RISC-V instruction set extensions - especially vector, crypto, and bit manipulation extensions -
+  as the evolutionary driver.  This processor family is seeing rapid evolution and can serve as a good
+  excellent evolutionary driver for Ghidra.
+    * Narrow the scope to 64 bit RISC-V cores implementing the RVA-23 extension profile and serving medium
+      to high end servers and embedded systems.
 * Use current Gnu Compiler Suite toolchains supporting those extensions
     * Currently GCC 15.2 crosscompiler toolchain with a lightweight linux sysroot
-* Assume for concreteness that we are interested in analyzing forthcoming autonomous vehicle firmware, but have no current examples of such firmware.
-* Emphasize rapid build-and-test development cycles with good debugging instrumentation
+* Assume for concreteness that we are interested in analyzing forthcoming autonomous vehicle firmware,
+  but have no current examples of such firmware.  How do we explore those futures?
+* Emphasize rapid build-and-test development cycles with good debugging instrumentation.
+    * Trial and error works well, if the errors come quickly and you learn from and record each one.
 * Rebase frequently with Ghidra releases, while avoiding relying on project PRs being accepted.
-    * Therefore patch a plugin manager into the Decompiler, then load user-specific plugins to explore new features.
-* Development testing should use the native Ghidra Decompiler `datatest` framework and not require a full rebuild of the Ghidra Java GUI or
-  the Decompiler core code
-* Users can launch ghidraRUn easily either with or without a single plugin module.
-* Project success is when 90% of binaries analyzed give clearer results in the Decompiler window, and 5% or fewer function decompilations result in a Decompiler
-  segfault or Low level Error.
-* No changes to the Ghidra GUI code or the interprocess API between the decompiler and the Ghidra GUI code.
+    * Therefore patch a plugin manager into the Decompiler, then load user-specific plugins to explore
+      new features.
+* Development testing should use the native Ghidra Decompiler `datatest` framework and not require a
+  full rebuild of the Ghidra Java GUI or the Decompiler core code.  Just recompile the plugin.
+* Users can launch `ghidraRun` easily either with or without a single plugin module.
+* Project success is when 90% of binaries analyzed give clearer results in the Decompiler window,
+  and 5% or fewer function decompilations result in a Decompiler segfault or Low level Error.
+* No changes to the Ghidra GUI code or the interprocess API between the decompiler processes and the
+ Ghidra GUI.
 
 Non-features:
-* no testing on Windows or other non-linux host systems
-* no attention to maintaining emulation capability
-* no strict adherence to current Decompiler build tools and configuration
-* no ability to switch plugins from within the Ghidra GUI - closing Ghidra and relaunching it is needed.
+* no immediate testing on Windows or other non-linux host systems
+* no attention to maintaining emulation capability - use qemu for that.
+* no strict adherence to current Decompiler build tools and configuration.  
+* no ability to switch plugins from within the Ghidra GUI - closing Ghidra and relaunching
+  it is good enough for now.
 
 {{% /blocks/section %}}

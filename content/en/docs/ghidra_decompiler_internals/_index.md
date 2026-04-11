@@ -1,14 +1,18 @@
 ---
 title: Ghidra Decompiler Internals
 linkTitle: Ghidra Decompiler Internals
+description: What we've learned about the Ghidra decompiler's internals.  Definitely a work-in-progress.
 menu: {main: {weight:10}}
 weight: 10
 ---
 
 {{% blocks/section color='white' %}}
 
+>Note: a rough sketch of things we can put here
+
 * Overview of the Ghidra decompiler
-    * multiple processes, each single threaded, responding to commands from the Ghidra GUI
+    * The decompiler executes as one or more processes, each single threaded,
+      responding to piped commands from the Ghidra GUI.
     * source and executable code locations
     * SLEIGH dependencies
     * build system
