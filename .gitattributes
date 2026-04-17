@@ -1,1 +1,2 @@
 test_data/memcpy_exemplars.so filter=lfs diff=lfs merge=lfs -text
+test_data/strlen_exemplars.so filter=lfs diff=lfs merge=lfs -text

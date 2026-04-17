@@ -21,11 +21,11 @@ BAZEL_BUILD_DATATEST_PATH = "bazel-bin/external/+_repo_rules+ghidra/decompile_da
 
 # Regression tests are split into two sets.  The smaller and faster tests run under valgrind,
 # while the larger ones do not.
-SMALLER_TEST_SET = ("memcpy_exemplars","strcmp_exemplars", "whisperInit", "whisper_sample_1a",
-                            "whisper_sample_1b", "whisper_sample_2", "whisper_sample_3",
-                            "whisper_sample_6", "whisper_sample_7", "whisper_sample_8",
-                            "whisper_sample_10", "whisper_sample_11", "dpdk_sample_1",
-                            "dpdk_sample_2", "dpdk_sample_3")
+SMALLER_TEST_SET = ("memcpy_exemplars", "strlen_exemplars",  "strcmp_exemplars", "whisperInit",
+                    "whisper_sample_1a", "whisper_sample_1b", "whisper_sample_2",
+                    "whisper_sample_3", "whisper_sample_6", "whisper_sample_7",
+                    "whisper_sample_8", "whisper_sample_10", "whisper_sample_11",
+                    "dpdk_sample_1", "dpdk_sample_2", "dpdk_sample_3")
 
 LARGER_TEST_SET = ("whisper_sample_4", "whisper_sample_5", "whisper_sample_8", "whisper_sample_9",
                            "whisper_sample_12", "whisper_main")
@@ -38,7 +38,9 @@ def trim_output(result):
 
 def extract_c(result):
     """
-    isolate the decompiled C source from a single function test case
+    isolate the decompiled C source from a single function test case.
+    Note: the Ghidra script must issue the `print C` command immediately before
+    the `print Raw` command.
     """
     start = '[decomp]> print C'
     end = '[decomp]> print raw'
@@ -82,6 +84,7 @@ def run_datatest(test_case, sample, plugin=True, datatest_path=DATATEST_PATH, pl
     test_case.assertNotIn("Execution error", result.stdout,
                         "Decompiler finds script error")
     trim_output(result.stdout)
+    return result.stdout
 
 class T000BuildBaselineDecompiler(unittest.TestCase):
     """
@@ -202,8 +205,58 @@ class T100Thixotropist(unittest.TestCase):
     PLUGIN_NAME = "libriscv_vector.so"
     PLUGIN_LOAD_DIR = "/tmp/"
     PLUGIN_PATH = PLUGIN_LOAD_DIR + PLUGIN_NAME
+    # some tests currently fail, so defer these to their own test case
     DEFERRED_TESTS = ("dpdk_sample_1", "whisper_sample_5",
                       "whisper_sample_12", "whisper_main")
+    # each datatest is expected to recognize a fixed number of transform instances
+    expected = {
+        'memcpy_exemplars':  {'vector_memcpy':5},
+        'strlen_exemplars':  {'vector_strlen':2},
+        'strcmp_exemplars':  {'vector_strcmp':2},
+        'whisperInit':       {'vector_memset';1, 'vector_memcpy':3}
+        'whisper_sample_1a': {'vector_memcpy':1, 'vector_strlen':0},
+        'whisper_sample_1b': {'vector_memcpy':1, 'vector_strlen':1},
+        'whisper_main':      {'vector_memset':4, 'vector_memcpy':13, 'vector_strlen':1},
+        'whisper_sample_2':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
+        'whisper_sample_3':  {'vector_memcpy':5,},
+        'whisper_sample_4':  {'vector_memset':16, 'vector_memcpy':86, 'vector_strlen':0},
+        'whisper_sample_5':  {'vector_memset':3, 'vector_memcpy':20, 'vector_strlen':1},
+        'whisper_sample_6':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
+        'whisper_sample_7':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
+        'whisper_sample_8':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
+        'whisper_sample_10': {'vector_memset':0, 'vector_memcpy':3, 'vector_strlen':0},
+        'whisper_sample_11': {'vector_strcmp':1},
+        'whisper_sample_12': {'vector_memset':2, 'vector_memcpy':7, 'vector_strlen':1},
+        'dpdk_sample_1':     {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
+        'dpdk_sample_2':     {'vector_memset':0, 'vector_memcpy':1, 'vector_strlen':0},
+        'dpdk_sample_3':     {'vector_strlen':2},
+    }
+
+    def setUp(self):
+        """
+        Accumulate failures here that are only asserted at the end of a unit test
+        """
+        self.expectations_failed = False
+
+    def assert_expected_transform_count(self, name, result_output):
+        """
+        count the number of vector transforms in the C section of a testcase stdout
+        :param testCase: the invoked unit test case
+        :param name: the name identifying the expected results
+        :param result_output: the process output from the decompilation
+        """
+        source = extract_c(result_output)
+        if not name in self.expected:
+            return
+        expected_results = self.expected[name]
+        for pat in expected_results:
+            num_found = source.count(pat)
+            print(f"found {num_found} instances of {pat} in test case {name}")
+            if num_found != expected_results[pat]:
+                print(f"Error: Unexpected number ({num_found}) of " +
+                      f"{pat} transforms found in {name}" +
+                      f"\tExpected: {expected_results[pat]} transforms")
+                self.expectations_failed = True
 
     def test_01_install_patched_decompile_datatest(self):
         """
@@ -272,8 +325,11 @@ class T100Thixotropist(unittest.TestCase):
             if i in self.DEFERRED_TESTS:
                 logger.info(f"Deferring test {i} as currently failing")
                 continue
-            run_datatest(self, i, plugin=True, datatest_path=f"valgrind {DATATEST_PATH}",
+            result = run_datatest(self, i, plugin=True, datatest_path=f"valgrind {DATATEST_PATH}",
                          plugin_path=self.PLUGIN_PATH)
+            self.assert_expected_transform_count(i, result)
+        self.assertFalse(self.expectations_failed,
+                         "At least one test reported an unexpected number of transforms")
 
     def test_04_longer_exemplars(self):
         """
@@ -283,8 +339,11 @@ class T100Thixotropist(unittest.TestCase):
             if i in self.DEFERRED_TESTS:
                 logger.info(f"Skipping test {i} as currently failing")
                 continue
-            run_datatest(self, i, plugin=True, datatest_path=f"{DATATEST_PATH}",
+            result = run_datatest(self, i, plugin=True, datatest_path=f"{DATATEST_PATH}",
                          plugin_path=self.PLUGIN_PATH)
+            self.assert_expected_transform_count(i, result)
+        self.assertFalse(self.expectations_failed,
+                         "At least one test reported an unexpected number of transforms")
 
     def test_05_failing_exemplars(self):
         """
@@ -292,8 +351,11 @@ class T100Thixotropist(unittest.TestCase):
         failure currently fails this test, preventing others from running.
         """
         for i in self.DEFERRED_TESTS:
-            run_datatest(self, i, plugin=True, datatest_path=f"valgrind {DATATEST_PATH}",
+            result = run_datatest(self, i, plugin=True, datatest_path=f"valgrind {DATATEST_PATH}",
                          plugin_path=self.PLUGIN_PATH)
+            self.assert_expected_transform_count(i, result)
+        self.assertFalse(self.expectations_failed,
+                         "At least one test reported an unexpected number of transforms")
 
 if __name__ == "__main__":
     unittest.main()
