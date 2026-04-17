@@ -24,6 +24,7 @@ If we don't want to run *all* of the datatests within the `testfunction` test ha
 a standalone decompiler test:
 
 First slice the binary data and core type information out of `heapstring.xml` into test/heapstring_save.xml.  That will look like:
+
 ```xml
 <xml_savefile name="main" target="default" adjustvma="0">
     <binaryimage arch="x86:LE:64:default:gcc">
@@ -39,6 +40,11 @@ First slice the binary data and core type information out of `heapstring.xml` in
     </coretypes>
 </xml_savefile>
 ```
+
+>Warning: The `coretypes` shown above are the absolute minimum needed for this short `binaryimage`.
+>         If the decompiler decides other core types are needed, and they are not included here,
+>         the decompiler will enter an endless loop "claiming type propagation is not settling".
+>         It is generally better to include *all* core types in *every* datatest.
 
 Next select the decompiler commands out of `heapstring.xml` into `test/heapstring.ghidra`:
 
@@ -64,7 +70,7 @@ Ghidra's listing window shows:
                     FUN_00000000:
 00000000 f3 0f 1e fa     ENDBR64
 00000004 48 ba 4d        MOV     RDX,0x3a6567617373654d
-         65 73 73 
+         65 73 73
          61 67 65 3a
 0000000e 48 8b 07        MOV     RAX,qword ptr [ptr->val]
 00000011 48 89 10        MOV     qword ptr [RAX],RDX

@@ -4,6 +4,9 @@ description: Thixotropist uses a testbed designed for rapid Decompiler experimen
 weight: 10
 ---
 
+>Edit: The following elements *may* be pulled into the [Commons Testbed Overview]({{% relref "/docs/Testbed_walkthrough" %}})
+>      or replaced by a simple link to thixotropist's repos.
+
 >Note: The testbed described here is *arbitrarily* tuned for Ghidra analysis of larger RISC-V executables potentially found in
 >      networked AI devices.  This kind of testbed should be easily redirected to other toolchains and platforms.
 
@@ -46,5 +49,3 @@ There are a lot of ways to manage your source-level experiments with the Ghidra 
   so flag PcodeOp changes with `info` messaging and non-modifying progress steps with `trace` messages.
   Check if your code leaves any `free` Varnodes
   in the wrong places and emit an `error` message followed by a `flush`, as the decompiler will surely segfault sometime after your new code completes.
-
->EDIT: add links to existing thixotropist testbeds to show some examples

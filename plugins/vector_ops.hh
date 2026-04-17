@@ -1,0 +1,421 @@
+/**
+ * @file vector_ops.hh
+ * @author thixotropist
+ * @brief Model the RISC-V assembly elements found in vector operands
+ * @date 2025-10-07
+ * @copyright Copyright (c) 2025
+ */
+
+#ifndef VECTOR_OPS_HH
+#define VECTOR_OPS_HH
+
+#include <set>
+#include <vector>
+#include "spdlog/spdlog.h"
+#include "Ghidra/Features/Decompiler/src/decompile/cpp/varnode.hh"
+#include "Ghidra/Features/Decompiler/src/decompile/cpp/op.hh"
+#include "inspector.hh"
+#include "framework.hh"
+#include "riscv.hh"
+
+namespace riscv_vector{
+
+/**
+ * @brief VectorOperand collects Ghidra PcodeOps that might be generated during
+ * loop vectorization.  They are similar to `std::vector<>` operands that might be found
+ * in `std::transform(...)`, `std::reduce(...)`, or `std::inner_product(...)` operations.
+ * @details Intermediate vector terms are not generally processed into VectorOperand
+ * objects.
+ * @todo Add dependent PcodeOps, pExternal, and other context member objects.
+ */
+class VectorOperand
+{
+  public:
+    /// @brief Vector Operands can be load or store or other
+    enum OperandType {
+        load,        ///< load a vector register from memory
+        store,       ///< store a vector register to memory
+        readModifyWrite, ///< read and modify some or all elements, then store
+        constant,    ///< load a vector register with all constants
+        indexer,     ///< load a vector register with (0, 1, 2, 3, ...) or similar
+        other
+    };
+    /// @brief Provide string names for enum types during trace
+    /// @brief initialize static objects once
+    static void static_init();
+    OperandType opType;              ///< The role for this operand
+    ghidra::Varnode* vRegister;      ///< identify the vector result Varnode
+    ghidra::Varnode* pRegister;      ///< identify the pointer Varnode within the loop
+    ghidra::Varnode* pExternal;      ///< the vector address Varnode given to the loop
+    ghidra::intb vector_register;    ///< vector register holding the values
+    ghidra::intb pointer_register;   ///< scalar register holding the current pointer
+    std::vector<ghidra::PcodeOp*> incrementOps;  ///< sequence of PcodeOps incrementing the pointer register
+    int elementLength;               ///< element size in bytes
+    std::set<ghidra::Varnode*> dependencies; ///< Register Varnodes dependent on this operand
+    /**
+     * @brief Constructor
+     * @param t The identified type of this new operand
+     */
+    explicit VectorOperand(OperandType t) :
+      opType(t),
+      vRegister(nullptr),
+      pRegister(nullptr),
+      pExternal(nullptr),
+      vector_register(0),
+      pointer_register(0),
+      elementLength(0) {}
+    ~VectorOperand();                    ///< destructor
+    /**
+     * @brief describe this VectorOperand
+     * @param ss A stringstream to receive the description
+     */
+    void printRaw(std::stringstream& ss);
+};
+
+enum OperationType      ///< Scalar and Vector operations fall into several categories
+{
+  unknown,                 ///< not yet recognized
+  copy,                    ///< copy
+  load,                    ///< load
+  addition,                ///< add to register
+  pointerAddition,        ///< add to pointer register
+  subtraction,             ///< subtract from register
+  multiplication,          ///< multiplication
+  twosComplement,         ///< twos complement
+  comparison,              ///< various comparison operations
+  conditionalBranch,      ///< conditional branch
+  vectorSetup,             ///< vsetvli*
+  vectorLoad,              ///< vector load from memory
+  vectorLoadFF,            ///< vector load fail on first
+  vectorStore,             ///< vector store to memory
+  vectorToVector,          ///< vector operand to vector result
+  vectorImmediateToVector, ///< vector and scalar immediate operands to vector result
+  vectorPairToVector,      ///< two vector operands to a vector result
+  vectorToScalar,          ///< vector operand to scalar result
+  vectorComparison,        ///< vector logical comparison
+};
+
+/**
+ * @brief Vector operations (including load or store) transform a vector operand
+ * into a vector or scalar result.
+ */
+class VectorOperation
+{
+  public:
+
+    OperationType type;      ///< the OperationType for this operation.
+    ghidra::PcodeOp* op;     ///< the original Ghidra PcodeOp
+    ghidra::Varnode* result;///< the result of this operation
+    ghidra::Varnode* arg0;  ///< the first argument of this operation
+    ghidra::Varnode* arg1;  ///< the second argument of this operation, or null
+    ghidra::Varnode* arg2;  ///< the third argument of this operation, or null
+    VectorOperation(OperationType typeParam, ghidra::PcodeOp* opParam);  ///< Constructor
+    static void static_init(); ///< initialize static objects once on initialization
+};
+
+/**
+ * @brief Scalar operations include counter increments, pointer increments, and comparisons
+ */
+class ScalarOperation
+{
+  public:
+    OperationType type;   ///< generic operation type
+    ghidra::PcodeOp* op;     ///< the original Ghidra PcodeOp
+    ghidra::Varnode* result; ///< the register adjusted in this operation, identified by its Ghidra ID
+    ghidra::Varnode* arg0;  ///< the first argument of this operation
+    ghidra::Varnode* arg1;  ///< the second argument of this operation, or null
+    ghidra::Varnode* arg2;  ///< the third argument of this operation, or null
+    ghidra::OpCode opcode; ///< the Ghidra operation code
+    //std::vector<ghidra::Varnode*> arguments;  ///< increment or decrement value
+    ScalarOperation(OperationType typeParam, ghidra::PcodeOp* opParam); ///< Constructor
+};
+
+/**
+ * @brief Model a series of vector operations not within or associated with a loop,
+ * most commonly a vector load/store combination.
+ * @details This class provides survey, matching, and transformation code within the
+ * constructor
+ */
+class VectorSeries
+{
+  public:
+    ghidra::Funcdata& data; ///< summary data for the enclosing function
+    ghidra::int4 numBytes; ///< number of bytes implied by the vsetivli trigger
+    ghidra::BlockBasic* currentBlock; ///< the BasicBlock holding the vsetivli trigger
+    std::vector<ghidra::PcodeOp *> loadSet; ///< vector load instructions found in the current block controlled by the first vsetivli
+    /**
+     * @brief Construct a vector series matcher, triggered by a vsetivli instruction
+     * @param firstOp the Ghidra CALLOTHER invoking the vsetivli instruction
+     * @param data Ghidra's accumulated context of the function being decompiled
+     * @param vsetInfo information decoded from the invoking vsetivli instruction
+     */
+    VectorSeries(ghidra::PcodeOp* firstOp, ghidra::Funcdata& data, const RiscvUserPcode* vsetInfo);
+    /// @brief match any simple series with fixed sizes like memset or memcpy
+    /// @return ghidra::RETURN_TRANSFORM_PERFORMED if the function was changed
+    int match();
+};
+
+/**
+ * @brief Model a vector loop iterating over a variable number of elements
+ */
+class VectorLoop
+{
+  public:
+    /// @brief @brief Lambda expressions used to process user pcode operators
+    using userPcodeOpHandler = std::function<void(VectorLoop& loop, int ghidraOp, ghidra::PcodeOp* op)>;
+
+    static const uint32_t TERMINATES_ON_COUNTDOWN = 0x00000001;   ///< This loop counts down to zero
+    static const uint32_t TERMINATES_ON_POINTER_TEST = 0x00000002;///< This loop exits on pointer test
+    static const uint32_t TERMINATES_ON_DATA_TEST = 0x00000004;   ///< This loop exits on data element test
+    uint32_t terminationConditionFlags;  ///< collect tests controlling the termination of this loop
+    enum TerminationCondition    ///< What kind of conditional expression(s) terminate this loop?
+    {
+      countDown,                 ///< An integer count of the number of elements left to process
+      pointerTest,               ///< Incrementing or decrementing a pointer until it reaches the end of an array
+      dataTest                   ///< A test against a data element read
+    };
+
+    /**
+    * @brief the generic type of this vector function
+    */
+    enum fType {
+        memcpy,           ///< similar to the stdlib memcpy
+        memset,           ///< similar to the stdlib memset
+        strlen,           ///< similar to the stdlib strlen
+        transform,        ///< apply a scalar function to each element of a vector
+        reduce,           ///< reduce a vector to a scalar
+        innerProduct,     ///< inner product between two vectors
+        unknown,          ///< unrecognized type
+        other             ///< generic type not yet established
+    };
+    fType typ;             ///< this function type
+    std::string name;      ///< display name
+    // collect features we can use to identify matching transforms
+    uint loopFlags;        ///< aggregated instruction flags found within the loop
+    bool loopFound;        ///< was a simple loop found?
+    ghidra::Funcdata& data;  ///< The ghidra function data top level information
+    ghidra::FunctionEditor functionEditor; ///< A set of ghidra function editor utilities
+    ghidra::PcodeOp* vsetOp; ///< The vsetvli or vsetivli pcode op found at the beginning of the loop
+    ghidra::AddrSpace* codeSpace;   ///< The code address space containing the loop
+    ghidra::uintb firstAddr; ///< the first RAM address of this loop
+    ghidra::uintb lastAddr; ///< the last RAM address of this loop
+    ghidra::BlockBasic* loopBlock;   ///< the parent block of the loop
+    std::vector<ghidra::FlowBlock*> relatedBlocks; ///< Blocks which flow into loopBlock
+    ghidra::Varnode* terminationVarnode; ///< boolean Varnode - if true, jump to start of the loop
+    ghidra::Varnode* comparisonVarnode; ///< boolean Varnode - the varnode tested for termination
+    std::vector<ghidra::Varnode*> loopLocalVns; ///< Varnodes which should never be referenced outside the loop or epilog
+    std::vector<ghidra::PcodeOp*> loopOps; ///< loop pcode ops other than Phi or MULTIEQUAL ops
+    ghidra::PcodeOp* terminationControl; ///< variable tested to terminate the loop
+    ghidra::PcodeOp* terminationBranchOp; ///< the conditional branch ending this loop
+    std::vector<ghidra::PcodeOp*> phiNodesAffectedByLoop;  ///< Phi or MULTIEQUAL opcodes referencing loop variables
+    ghidra::OpCode comparisonOp; ///< Ghidra opcode for an integer comparison test
+    bool simpleFlowStructure; ///< is this a simple loop?
+    std::vector<ghidra::PcodeOp*> otherUserPcodes; ///< Other user pcodes found within the loop
+    std::vector<VectorOperation*> vectorOps; ///< ordered vector operations with handlers assigned found within this loop
+    std::vector<VectorOperation*> unhandledVectorOps; ///< ordered vector operations without handlers assigned found within this loop
+    std::vector<ScalarOperation*> scalarOps; ///< ordered non-vector operations with handlers assigned collected within this loop
+    std::vector<ScalarOperation*> otherScalarOps; ///< ordered non-vector operations with handlers assigned collected within this loop
+    std::vector<const ghidra::PcodeOp*> epilogPcodes; ///< vector operations found in the loop epilog
+    std::vector<VectorOperation*> vLoadOps;    ///< vector load operations found
+    std::vector<VectorOperation*> vStoreOps;   ///< vector store operations found
+    std::vector<ScalarOperation*> sIntegerOps; ///< scalar integer operations found
+    std::vector<ScalarOperation*> sComparisonOps; ///< scalar comparison operations found
+    std::vector<VectorOperation*> vLogicalOps; ///< vector logical operations found
+    std::vector<VectorOperation*> vIntegerOps; ///< vector integer operations found
+    std::vector<VectorOperation*> vComparisonOps; ///< vector comparison operations found
+    std::vector<VectorOperand*> vSourceOperands; ///< vector source operands and their loop context
+    std::vector<VectorOperand*> vDestinationOperands; ///< vector destination operands and their loop context
+    ghidra::Varnode* numElements;  ///< Varnode tracking the number of elements remaining to be processed
+    std::map<ghidra::uintb, std::vector<ghidra::Varnode*>*> registerPhiMapping;  ///< map loop registers to their heritage Varnodes
+    std::map<ghidra::uintb, std::vector<ghidra::Varnode*>*> csRegisterPhiMapping;  ///< map loop control and status registers to their heritage Varnodes
+    /**
+     * @brief Construct a new Vector Function object to hold model parameters
+     * @param dataParam The Ghidra function data top level object
+     * @param traceParam True if the current log level includes tracing
+     */
+    VectorLoop(ghidra::Funcdata& dataParam, const bool traceParam);
+    /**
+     * @brief Destroy the Vector Function object
+     */
+    ~VectorLoop();
+    /**
+     * @brief Is this Varnode defined within (generated within) the current loop?
+     * @param vn a Varnode reference
+     * @return true if the pcode defining this VN lies inside our loop
+     */
+    bool isDefinedInLoop(const ghidra::Varnode* vn);
+    /**
+     * @brief perform one-time static initialization
+     */
+    static void static_init();
+    /**
+     * @brief Analyze the loop to collect traits useful in matching and transforms
+     * @param vsetOp The vsetvli or vsetivli instruction found at the top of the loop
+     */
+    void analyze(ghidra::PcodeOp* vsetOp);
+    /**
+     * @brief log this model to the current logfile
+     */
+    void log();
+    /**
+     * @brief Check a vector result for unresolved dependencies
+     * @param result The result to check
+     * @return true if the transform has free Varnodes and must be aborted
+     */
+    bool unresolvedDependencies(const ghidra::PcodeOp* result);
+  private:
+
+    int multiplier;                        ///< vset multiplier
+    int elementSize;                       ///< vset element size
+    ghidra::intb vlReg;                    ///< vector load destination register
+    ghidra::intb vlAddrReg;                ///< vector load scalar pointer register
+    ghidra::intb vlAddrIncrReg;            ///< vector load scalar pointer increment register
+    ghidra::intb vsReg;                    ///< vector store source register
+    ghidra::intb vsAddrReg;                ///< vector store scalar pointer register
+    ghidra::intb vsAddrIncrReg;            ///< vector store scalar pointer increment register
+    ghidra::intb elementCounterReg;        ///< loop element counter register
+    bool trace; ///< is trace logging enabled?
+    /**
+     * @brief Invoke a vector instruction (user PcodeOp) handler to update the VectorLoop model.
+     * @details This handler triggers on user PcodeOps when iterating through a vector loop.
+     * Don't confuse it with a generic higher level vector operation.
+     *
+     * @param op The ghidra PcodeOp implementing the userPcodeOpHandler.
+     */
+    bool invokeVectorOpHandler(ghidra::PcodeOp* op);
+    /**
+    * @brief construct basic control flow data around a vset op to determine
+    * if this is a simple loop
+    */
+    void examine_control_flow(ghidra::PcodeOp* vsetOp);
+    /**
+     * @brief Collect other PcodeOps bound to the initial vset instruction
+     * @details These Pcodes may include Phi nodes showing register heritage,
+     * or cast operations.  We are especially interested in Phi Pcodes that
+     * reference loop registers
+     */
+    void collect_phi_nodes();
+    /**
+     * @brief Phi nodes referencing vector control and status registers need
+     * a lot of cleanup.  Do it here, regardless of whether a transform is completed.
+     */
+    void clean_csr_phi_nodes();
+    /**
+     * @brief Examine pcode ops within a loop to locate key vector operations.
+     * @param loopBlock The Ghidra block containing the trigger vset instruction
+     */
+    void examine_loop_pcodeops(const ghidra::BlockBasic* loopBlock);
+    /**
+     * @brief Identify common loop elements like vector loads, vector stores, and element counters
+     */
+    void collect_common_elements();
+    /**
+     * @brief Identify key instructions following this loop, such
+     * as might be needed for reduction algorithms.
+     */
+    void examine_loop_epilog();
+    /**
+     * @brief collect possible related blocks
+     */
+    void collect_related_blocks();
+
+    /**
+     * @brief Generate a summary report for this vector loop
+     */
+    void generateReport();
+};
+/**
+ * @brief The VectorEpilogProcessor provides methods to extract results from
+ * the epilog to a vector loop.
+ * @details Results are typically output Varnodes in the `register` address space.
+ * Epilog processing can be complicated as unrelated PcodeOps may be present
+ * in the block before the results are calculated.
+ */
+class VectorEpilogProcessor
+{
+  public:
+    ghidra::Funcdata& data;                  ///< The ghidra Funcdata context for this analysis
+    ghidra::Inspector& inspector;            ///< The Ghidra inspector to use
+    std::shared_ptr<spdlog::logger> logger;  ///< The spdlogger to use
+    VectorLoop& loopModel;                   ///< The VectorLoop model to use
+    /**
+     *  @brief Construct the processor context
+     *  @param dataParam The ghidra Funcdata context to use
+     *  @param inspectorParam The Ghidra inspector to use
+     *  @param loggerParam  The spdlogger to use
+     *  @param loopModelParam The VectorLoop model to use
+     */
+    VectorEpilogProcessor(ghidra::Funcdata& dataParam, ghidra::Inspector& inspectorParam,
+                          std::shared_ptr<spdlog::logger> loggerParam, VectorLoop& loopModelParam) :
+      data(dataParam),
+      inspector(inspectorParam),
+      logger(loggerParam),
+      loopModel(loopModelParam),
+      resultFilter(REGISTER_VARNODE_ONLY),
+      trace(logger->should_log(spdlog::level::trace))
+    {}
+    /// @brief Filter to use when generating result candidates
+    enum ResultFilter {
+      REGISTER_VARNODE_ONLY,   ///< The result Varnode must reference a real register
+      ANY_VARNODE              ///< The result may be any Varnode
+    };
+    /**
+     * @brief set varnodes to halt further descent down the dependency tree
+     * @param stopSetParam The set of Varnodes which halt dependency searches, typically loop termination tests
+     */
+    void setStopSet(const std::set<ghidra::Varnode*>& stopSetParam);
+    /**
+     * @brief set the result filter
+     */
+    inline void setResultFilter(ResultFilter filterType)
+    {
+      resultFilter = filterType;
+    }
+    /**
+     * @brief Get the Intersection of the dependency trees of two Varnodes
+     * @param results A vector of possible results, output Varnodes dependent on both root Varnodes
+     * @param root1 The first varnode
+     * @param root2 The second varnode
+     */
+    void getIntersectionVector(std::vector<ghidra::Varnode*>& results, const ghidra::Varnode* root1, const ghidra::Varnode* root2);
+  private:
+    std::set<ghidra::Varnode*> stopSet;
+    ResultFilter resultFilter;
+    bool trace;
+    std::stringstream ss; ///< buffer for log messages
+    const int MAX_DEPENDENCY_DEPTH = 12; ///< maximum number of links in a Varnode dependency chain
+    const int EPILOG_SEARCH_DEPTH = 16; ///< maximum distance, in bytes, from the of loop to result PcodeOP
+    ///@brief lambda implementing REGISTER_VARNODE_ONLY result filter
+    std::function<bool(const ghidra::Varnode *vn)> selectRegisterVnOnly =
+        [this](const ghidra::Varnode *vn)
+    {
+      ghidra::uintb vnOffset = vn->getDef()->getAddr().getOffset();
+      return (!loopModel.isDefinedInLoop(vn)) &&
+             (vn->getAddr().getSpace() == ghidra::registerAddrSpace) &&
+             (vnOffset >= loopModel.lastAddr) &&
+             (vnOffset <= (loopModel.lastAddr + EPILOG_SEARCH_DEPTH));
+    };
+    ///@brief lambda implementing ANY_VARNODE result filter
+    std::function<bool(const ghidra::Varnode *vn)> selectAny =
+        [this](const ghidra::Varnode *vn)
+    {
+      ghidra::uintb vnOffset = vn->getDef()->getAddr().getOffset();
+      return (!loopModel.isDefinedInLoop(vn)) &&
+             (vnOffset >= loopModel.lastAddr) &&
+             (vnOffset <= (loopModel.lastAddr + EPILOG_SEARCH_DEPTH));
+    };
+    /**
+     * @brief log a vector of Varnodes with a descriptive label
+     * @param results
+     * @param label
+     */
+    void traceResultCandidates(const std::vector<ghidra::Varnode*>& results, const std::string& label);
+    /**
+     * @brief log a set of Varnodes with a descriptive label
+     * @param depSet The set to log
+     * @param label A label to describe this set
+     */
+    void traceDependencies(const std::set<ghidra::Varnode*>& depSet, const std::string& label);
+};
+}
+#endif /* VECTOR_OPS_HH */

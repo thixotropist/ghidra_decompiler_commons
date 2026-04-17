@@ -37,7 +37,7 @@ void test_1_ref(ulonglong *in,ulonglong *out,ulong size)
   ulong uVar8;
   undefined1 auVar9 [32];
   undefined1 auVar10 [32];
-  
+
   if (size != 0) {
     uVar5 = (ulong)((int)size + -1);
     if (0xc < uVar5) {

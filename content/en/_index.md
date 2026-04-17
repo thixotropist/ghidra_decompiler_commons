@@ -1,5 +1,5 @@
 ---
-title: Common Test and Development Resources for the Ghidra Decompiler
+title: Ghidra Decompiler Extensions Testbed
 ---
 
 {{% blocks/section color='white' %}}
@@ -11,36 +11,14 @@ something similar to C for display in the Ghidra User Interface.  This is a powe
 of the Ghidra tool suite - and one that needs to evolve as quickly as the compilers and processor cores that generate
 those binaries.
 
-This site collects documents, resource links, and design experiments that may help the broader Ghidra community
-to help that evolution along.
+This site collects:
+* integration tests to help show that improvements made to the decompiler do not cause regression failures.
+* demonstration of decompiler feature extensions, showing what improvements are possible and at what cost in
+  the future maintenance burden.
+* documents, resource links, and design experiments that may help the broader Ghidra community to help that
+  evolution along;
 
-## Outline
-
->Warning: everything here is subject to reorganization and reprioritization.  Updates and corrections are strongly encouraged.
-
-* Overview of the Ghidra decompiler
-    * multiple processes, each single threaded, responding to commands from the Ghidra GUI
-    * source and executable code locations
-    * SLEIGH dependencies
-    * build system
-* Ghidra decompiler native build and test infrastructure
-    * datatests
-    * standalone command interface
-* Ghidra Decompiler internals
-    * Actions and Rules
-    * PcodeOps and Varnodes
-    * Blocks and Edges
-    * Low level errors and common segfaults
-* Community Testbeds and Initiatives
-   * mumbel testbed and initiatives
-       * pending
-   * LukeSerne testbed and initiatives
-       * pending
-   * thixotropist testbed and initiatives
-       * Description of research goals and scope
-       * Add support for SPDLOG internal logging
-       * Add binary RISC-V exemplars for Decompiler survey and testing
-       * Add support for user-specific decompiler plugins
-       * Add support for RISC-V vector instruction transforms into more readable C-like displays
+Not all features tested here will make it into decompiler pull requests.  Some 'scaffolding' features, like extensive
+logging and tracing, are used to accelerate exploratory development.
 
 {{% /blocks/section %}}

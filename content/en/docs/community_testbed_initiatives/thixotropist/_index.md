@@ -39,7 +39,7 @@ Initiative features:
 Non-features:
 * no immediate testing on Windows or other non-linux host systems
 * no attention to maintaining emulation capability - use qemu for that.
-* no strict adherence to current Decompiler build tools and configuration.  
+* no strict adherence to current Decompiler build tools and configuration.
 * no ability to switch plugins from within the Ghidra GUI - closing Ghidra and relaunching
   it is good enough for now.
 

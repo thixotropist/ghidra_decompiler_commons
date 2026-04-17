@@ -1,6 +1,6 @@
 baseURL = 'ghidra_decompiler_commons'
 locale = 'en-us'
-title = 'Ghidra Decompiler Common Resources for Development and Testing'
+title = 'Ghidra Decompiler Common Resources for Exploratory Development'
 # Language settings
 contentDir = "content/en"
 defaultContentLanguage = "en"

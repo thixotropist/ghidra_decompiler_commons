@@ -1,12 +1,10 @@
 ---
-title: Ghidra Decompiler Internals
-linkTitle: Ghidra Decompiler Internals
-description: What we've learned about the Ghidra decompiler's internals.  Definitely a work-in-progress.
-menu: {main: {weight:10}}
-weight: 10
+title: Decompiler Internals
+linkTitle: decompiler internals
+description: What we've learned about the Ghidra decompiler's internals.
+menu: {main: {weight:30}}
+weight: 30
 ---
-
-{{% blocks/section color='white' %}}
 
 >Note: a rough sketch of things we can put here
 
@@ -24,5 +22,3 @@ weight: 10
     * PcodeOps and Varnodes
     * Blocks and Edges
     * Low level errors and common segfaults
-
-{{% /blocks/section %}}
