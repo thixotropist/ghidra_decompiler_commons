@@ -213,7 +213,7 @@ class T100Thixotropist(unittest.TestCase):
         'memcpy_exemplars':  {'vector_memcpy':5},
         'strlen_exemplars':  {'vector_strlen':2},
         'strcmp_exemplars':  {'vector_strcmp':2},
-        'whisperInit':       {'vector_memset';1, 'vector_memcpy':3}
+        'whisperInit':       {'vector_memset':1, 'vector_memcpy':3},
         'whisper_sample_1a': {'vector_memcpy':1, 'vector_strlen':0},
         'whisper_sample_1b': {'vector_memcpy':1, 'vector_strlen':1},
         'whisper_main':      {'vector_memset':4, 'vector_memcpy':13, 'vector_strlen':1},
