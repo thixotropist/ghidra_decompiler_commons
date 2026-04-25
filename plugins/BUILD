@@ -21,6 +21,7 @@ cc_library(
     ],
     copts = [
         "-Wno-sign-compare",
+        "-std=c++20"
     ],
     deps = [
         "@ghidra_patched//:decomp_lib",

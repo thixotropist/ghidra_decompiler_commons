@@ -169,11 +169,15 @@ DECOMP_HDRS = [
 # Note: only those headers declared under `hdrs` will be visible to plugin builds.
 cc_library(
     name = "decomp_lib",
+    visibility = ["//visibility:public"],
     srcs = [SRCDIR + f + ".cc" for f in DECOMP_CPP_FILES],
     hdrs = [SRCDIR + f + ".hh" for f in DECOMP_HDRS] + [
         SRCDIR + "types.h",
     ],
-    visibility = ["//visibility:public"],
+    copts = [
+        "-Wall",
+        "-Wno-sign-compare",
+    ],
     deps = [
         "@spdlog",
     ],

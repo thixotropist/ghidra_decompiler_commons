@@ -41,7 +41,7 @@ extern AddrSpace* ramAddrSpace;
 extern AddrSpace* stackAddrSpace;
 
 // utility functions
-extern ghidra::Inspector inspector;
+extern std::shared_ptr<ghidra::Inspector> inspector;
 }
 
 namespace riscv_vector
