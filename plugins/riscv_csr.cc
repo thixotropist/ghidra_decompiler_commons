@@ -10,20 +10,6 @@ ActionPluginPrepare::ActionPluginPrepare(std::shared_ptr<spdlog::logger> myLogge
     logger->info("Initializing ActionPluginPrepare");
 }
 
-static void dumpPcodes(const ghidra::Funcdata& data, std::shared_ptr<spdlog::logger> logger)
-{
-    std::stringstream ss;
-    ghidra::PcodeOpTree::const_iterator firstOp = data.beginOpAll();
-    for (auto iter = firstOp; iter != data.endOpAll(); iter++)
-    {
-        const ghidra::PcodeOp* op = iter->second;
-        if (op->isDead()) continue;
-        op->printRaw(ss);
-        ss << std::endl;
-    }
-    logger->trace("Function Pcodes:\n{0:s}", ss.str());
-}
-
 void ActionPluginPrepare::purgeCsrHeritage(ghidra::Funcdata& data)
 {
     std::stringstream ss;

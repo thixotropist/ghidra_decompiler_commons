@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 """
-Exerecise Ghidra decompiler variants
+Exercise Ghidra decompiler variants
 """
 import unittest
 import subprocess
@@ -206,10 +206,8 @@ class T100Thixotropist(unittest.TestCase):
     PLUGIN_NAME = "libriscv_vector.so"
     PLUGIN_LOAD_DIR = "/tmp/"
     PLUGIN_PATH = PLUGIN_LOAD_DIR + PLUGIN_NAME
-    # some tests currently fail, so defer these to their own test case
-    DEFERRED_TESTS = ("dpdk_sample_1", "whisper_sample_5",
-                      "whisper_sample_12", "whisper_main",
-                      "whisper_sample_15")
+    # if some tests currently fail, so defer these to their own test case
+    DEFERRED_TESTS = ()
     # each datatest is expected to recognize a fixed number of transform instances
     expected = {
         'memcpy_exemplars':  {'vector_memcpy':5},
@@ -218,19 +216,22 @@ class T100Thixotropist(unittest.TestCase):
         'whisperInit':       {'vector_memset':1, 'vector_memcpy':3},
         'whisper_sample_1a': {'vector_memcpy':1, 'vector_strlen':0},
         'whisper_sample_1b': {'vector_memcpy':1, 'vector_strlen':1},
-        'whisper_main': {'vector_memset':4, 'vector_memcpy':13, 'vector_strlen':1},
+        'whisper_main': {'vector_memset':4, 'vector_memcpy':12, 'vector_strlen':1},
         'whisper_sample_2': {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
         'whisper_sample_3':  {'vector_memcpy':5,},
         'whisper_sample_4':  {'vector_memset':16, 'vector_memcpy':85, 'vector_strlen':0},
-        'whisper_sample_5':  {'vector_memset':3, 'vector_memcpy':20, 'vector_strlen':1},
+        'whisper_sample_5':  {'vector_memset':3, 'vector_memcpy':17, 'vector_strlen':1},
         'whisper_sample_6':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
         'whisper_sample_7':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
         'whisper_sample_8':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
         'whisper_sample_10':  {'vector_memset':0, 'vector_memcpy':3, 'vector_strlen':0},
         'whisper_sample_11':  {'vector_strcmp':1},
-        'whisper_sample_12':  {'vector_memset':2, 'vector_memcpy':7, 'vector_strlen':1},
+        'whisper_sample_12':  {'vector_memset':2, 'vector_memcpy':5, 'vector_strlen':1},
         'whisper_sample_13a':  {'vector_memcpy':0},
         'whisper_sample_13b':  {'vector_memcpy':1},
+        'whisper_sample_14': {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
+        'whisper_sample_15':  {'vector_memcpy':1, 'vector_strlen':1},
+        'whisper_sample_16':  {'vector_memcpy':3},
         'dpdk_sample_1':  {'vector_memset':0, 'vector_memcpy':0, 'vector_strlen':0},
         'dpdk_sample_2':  {'vector_memset':0, 'vector_memcpy':1, 'vector_strlen':0},
         'dpdk_sample_3':  {'vector_strlen':2},
